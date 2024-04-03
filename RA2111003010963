@@ -1,0 +1,57 @@
+from flask import Flask, jsonify
+import requests
+
+app = Flask(__name__)
+
+WINDOW_SIZE = 10
+STORED_NUMBERS = []
+
+ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJNYXBDbGFpbXMiOnsiZXhwIjoxNzEyMTUxMTMyLCJpYXQiOjE3MTIxNTA4MzIsImlzcyI6IkFmZm9yZG1lZCIsImp0aSI6ImU5MDE5NWQyLWRiZDctNGEwNS05ZWZlLTYwMDI1Y2IxZjYzMCIsInN1YiI6InNuODkwM0Bzcm1pc3QuZWR1LmluIn0sImNvbXBhbnlOYW1lIjoic2hpdmFtbmF2ZWVuIiwiY2xpZW50SUQiOiJlOTAxOTVkMi1kYmQ3LTRhMDUtOWVmZS02MDAyNWNiMWY2MzAiLCJjbGllbnRTZWNyZXQiOiJNRHlZaFJzQUJaWldOWVB5Iiwib3duZXJOYW1lIjoic2hpdmFtIiwib3duZXJFbWFpbCI6InNuODkwM0Bzcm1pc3QuZWR1LmluIiwicm9sbE5vIjoiUkEyMTExMDAzMDEwOTYzIn0.SrA3K1-fsP0oWyYeaM1iYj-r26NgOi5lOpyLy-Axua0"
+
+def fetch_numbers(api_url):
+    try:
+        headers = {"Authorization": f"Bearer {ACCESS_TOKEN}"}
+        response = requests.get(api_url, headers=headers, timeout=0.5)
+        if response.status_code == 200:
+            return response.json()["numbers"]
+    except requests.exceptions.Timeout:
+        pass
+    except Exception:
+        pass
+    return []
+
+def calculate_average(numbers):
+    return sum(numbers) / len(numbers)
+
+@app.route("/numbers/<numberid>")
+def process_number_request(numberid):
+    global STORED_NUMBERS
+    window_prev_state = STORED_NUMBERS[:]
+
+    if numberid == "p":
+        numbers = fetch_numbers("http://20.244.56.144/test/primes")
+    elif numberid == "f":
+        numbers = fetch_numbers("http://20.244.56.144/test/fibo")
+    elif numberid == "e":
+        numbers = fetch_numbers("http://20.244.56.144/test/even")
+    elif numberid == "r":
+        numbers = fetch_numbers("http://20.244.56.144/test/rand")
+    else:
+        return "Invalid number ID"
+
+    numbers = [num for num in numbers if num not in STORED_NUMBERS]
+    STORED_NUMBERS = numbers[-WINDOW_SIZE:] + STORED_NUMBERS[-(WINDOW_SIZE - len(numbers)):]
+
+    window_curr_state = STORED_NUMBERS[:]
+    average = calculate_average(STORED_NUMBERS)
+
+    response = {
+        "windowPrevState": window_prev_state,
+        "windowCurrState": window_curr_state,
+        "numbers": STORED_NUMBERS,
+        "avg": round(average, 2)
+    }
+    return jsonify(response)
+
+if __name__ == "__main__":
+    app.run(port=9876)
